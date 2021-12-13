@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/atotto/clipboard"
 	"github.com/mattn/go-tty"
 	"github.com/micmonay/keybd_event"
 	"github.com/tarm/serial"
@@ -13,7 +14,6 @@ import (
 
 /*
 TODO: coooooool icon?
-TODO: go.mod
 TODO: readme with
   - dependency info
   - install build instructions (cover GOOS and GOARCH)
@@ -32,25 +32,26 @@ TODO: CLI menu implementation with:
 */
 
 func main() {
-  log.Println("Welcome to Protospace's RFID Reader Tool")
+	log.Println("Welcome to Protospace's RFID Reader Tool")
 
-  // openSerial("/dev/ttyUSB0", 2400)
-  openSerial("COM5", 2400)
+	// openSerial("/dev/ttyUSB0", 2400)
+	// openSerial("COM5", 2400)
 	// pressKeys()
-  // getKeys()
+	// getKeys()
+	clipboard.WriteAll("Hello FUCKAAASsdsadsada:w ")
 }
 
 // TODO: dummy serial implementation
 // TODO: pass in a channel that takes strings...
 func dummySerial() {
-  // every record from this particular scanner - or maybe it is the cards? - starts with 10 (LF) and ends with 13 (CR)
-  buf := []byte{
-    10, 51, 48, 48, 48, 70, 68, 51, 54, 56, 48, 13,
-    10, 51, 48, 48, 48, 66, 70, 70, 70, 67, 49, 13,
-  }
-  for _, v := range buf {
-    log.Printf("%d is a %s\n", v, rune(v))
-  }
+	// every record from this particular scanner - or maybe it is the cards? - starts with 10 (LF) and ends with 13 (CR)
+	buf := []byte{
+		10, 51, 48, 48, 48, 70, 68, 51, 54, 56, 48, 13,
+		10, 51, 48, 48, 48, 66, 70, 70, 70, 67, 49, 13,
+	}
+	for _, v := range buf {
+		log.Printf("%d is a %v\n", v, v)
+	}
 }
 
 // TODO: pass in a channel that takes strings...
@@ -74,8 +75,8 @@ func openSerial(device string, baud int) {
 			log.Fatal("Failed to read from port: ", err)
 		}
 		// s := string(buf[:n])
-    // log.Printf("Read %d bytes : %s\n", n, s)
-    log.Printf("Read %d bytes : %d\n", n, buf[:n])
+		// log.Printf("Read %d bytes : %s\n", n, s)
+		log.Printf("Read %d bytes : %d\n", n, buf[:n])
 	}
 }
 
