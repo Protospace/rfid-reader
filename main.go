@@ -14,11 +14,6 @@ import (
 
 /*
 TODO: coooooool icon?
-TODO: readme with
-  - dependency info
-  - install build instructions (cover GOOS and GOARCH)
-  - dev tips?
-  - maintainer?
 
 TODO: CLI parsing with:
   - Select serial device, baud
