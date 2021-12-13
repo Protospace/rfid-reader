@@ -28,6 +28,7 @@ TODO: CLI menu implementation with:
 
 func main() {
 	log.Println("Welcome to Protospace's RFID Reader Tool")
+  log.Println("Visit the repository page for more information and support: https://github.com/Protospace/rfid-reader")
 
 	// openSerial("/dev/ttyUSB0", 2400)
 	// openSerial("COM5", 2400)
