@@ -18,6 +18,7 @@ TODO: readme with
   - dependency info
   - install build instructions (cover GOOS and GOARCH)
   - dev tips?
+  - maintainer?
 
 TODO: CLI parsing with:
   - Select serial device, baud
@@ -31,17 +32,33 @@ TODO: CLI menu implementation with:
 */
 
 func main() {
-  openSerial()
+  log.Println("Welcome to Protospace's RFID Reader Tool")
+
+  // openSerial("/dev/ttyUSB0", 2400)
+  openSerial("COM5", 2400)
 	// pressKeys()
-  getKeys()
+  // getKeys()
 }
 
 // TODO: dummy serial implementation
-func openSerial() {
-	serialDevice := "/dev/hidraw1"
+// TODO: pass in a channel that takes strings...
+func dummySerial() {
+  // every record from this particular scanner - or maybe it is the cards? - starts with 10 (LF) and ends with 13 (CR)
+  buf := []byte{
+    10, 51, 48, 48, 48, 70, 68, 51, 54, 56, 48, 13,
+    10, 51, 48, 48, 48, 66, 70, 70, 70, 67, 49, 13,
+  }
+  for _, v := range buf {
+    log.Printf("%d is a %s\n", v, rune(v))
+  }
+}
+
+// TODO: pass in a channel that takes strings...
+func openSerial(device string, baud int) {
+	serialDevice := device
 	config := &serial.Config{
 		Name: serialDevice,
-		Baud: 9600,
+		Baud: baud,
 	}
 
 	stream, err := serial.OpenPort(config)
@@ -49,15 +66,16 @@ func openSerial() {
 		log.Fatal("Failed to open port to: ", err)
 	}
 
-	buf := make([]byte, 1024)
+	buf := make([]byte, 102)
 
 	for {
 		n, err := stream.Read(buf)
 		if err != nil {
 			log.Fatal("Failed to read from port: ", err)
 		}
-		s := string(buf[:n])
-		fmt.Println(s)
+		// s := string(buf[:n])
+    // log.Printf("Read %d bytes : %s\n", n, s)
+    log.Printf("Read %d bytes : %d\n", n, buf[:n])
 	}
 }
 
