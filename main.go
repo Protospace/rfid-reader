@@ -7,13 +7,10 @@ import (
 	"github.com/mattn/go-tty"
 	"github.com/micmonay/keybd_event"
 	"github.com/tarm/serial"
-	"log"
 	"os"
 	"runtime"
 	"time"
 )
-
-// TODO: wrap log.Fatal and waitForExitKey for error reporting to user
 
 // default device/baud is Protospace offices RFID scanner
 var defaultDevice = "COM5"
@@ -38,27 +35,39 @@ func main() {
 
 	// set up a channel to transmit bytes from serial device to the "aggregator" function
 	scanPipe := make(chan byte)
+	// set up a channel to let main know if it is safe to continue or now
+	proceedChan := make(chan bool)
 	if testMode {
 		fmt.Println("Test mode activated! Using a simulated device. Happy developing.")
 		fmt.Println("")
 		defaultDevice = "Test Simulator"
-		go dummySerial(scanPipe)
+		go dummySerial(scanPipe, proceedChan)
 	} else {
-		go openSerial(defaultDevice, defaultBaud, scanPipe)
+		go openSerial(defaultDevice, defaultBaud, scanPipe, proceedChan)
+	}
+	if !<-proceedChan {
+		fmt.Println("Something went wrong connecting the serial device.")
+		fmt.Println("Please read above and troubleshoot")
+		waitForExitKey('q')
+		os.Exit(1)
+		return
 	}
 	fmt.Println("Successfully connected to serial device '" + defaultDevice + "'.")
-	fmt.Println("Begin scanning!")
 
 	go clipboardBridge(scanPipe)
 	// TODO: Implement Keyboard bridge mode and allow user to select it instead of clipboard bridge
 	// pressKeys()
 
+	fmt.Println("Begin scanning!")
 	waitForExitKey('q')
 }
 
 // dummySerial returns hardcoded serial bytes for local development and testing
 // Harded coded bytes are pushed into toAggregator channel
-func dummySerial(toAggregator chan<- byte) {
+func dummySerial(toAggregator chan<- byte, proceed chan<- bool) {
+	// the serial device wont fail, so we are good to proceed
+	proceed <- true
+
 	dummyReadings := [][]byte{
 		[]byte{10, 51, 52, 53, 54, 71, 65, 56, 54, 56, 48, 13},
 		[]byte{10, 51, 48, 48, 49, 66, 70, 70, 70, 67, 49, 13},
@@ -68,17 +77,17 @@ func dummySerial(toAggregator chan<- byte) {
 	// send simulated data forever
 	for {
 		for _, reading := range dummyReadings {
+			// send a scan at regular intervals
 			for _, val := range reading {
 				toAggregator <- val
 			}
-			// send a scan at regular intervals
 			time.Sleep(5 * time.Second)
 		}
 	}
 }
 
 // openSerial will read directly from a serial device and push bytes into toAggregator channel
-func openSerial(device string, baud int, toAggregator chan<- byte) {
+func openSerial(device string, baud int, toAggregator chan<- byte, proceed chan<- bool) {
 	serialDevice := device
 	config := &serial.Config{
 		Name: serialDevice,
@@ -87,16 +96,21 @@ func openSerial(device string, baud int, toAggregator chan<- byte) {
 
 	stream, err := serial.OpenPort(config)
 	if err != nil {
-		log.Fatal("Failed to open port to: ", err)
+		fail("Failed to open port to ", device, " with err:", err)
+		proceed <- false
+		return
 	}
 
+	// broadcast successful connection to device
+	proceed <- true
 	buf := make([]byte, 128)
 
 	// read forever. put all data into the aggregator pipe
 	for {
 		n, err := stream.Read(buf)
 		if err != nil {
-			log.Fatal("Failed to read from port: ", err)
+			fail("Failed to read from port: ", err)
+			return
 		}
 		for _, v := range buf[:n] {
 			toAggregator <- v
@@ -126,15 +140,18 @@ func clipboardBridge(fromSerial <-chan byte) {
 			}
 
 			if len(result) > 1024 {
-				log.Fatal("Serial scan is far too long - is the baud set properly?")
+				fail("Serial scan is far too long - is baud set properly?")
+				return
 			}
 		}
 		// TODO: implement debounce? continue if current result is same as previous result and time elapsed is <500 ms?
 
 		// copy the result to clipboard and notify user
+		// BUG: if you pass string([]byte) as result, clipboard.WriteAll will silently fail if []byte contains empty elements
 		err = clipboard.WriteAll(result)
 		if err != nil {
-			log.Fatal("Failed to write to clipboard: ", err)
+			fail("Failed to write to clipboard: ", err)
+			return
 		}
 		fmt.Println("Scan copied to clipboard: " + result)
 	}
@@ -146,7 +163,8 @@ func waitForExitKey(exitKey rune) {
 	// open teletype to keyboard
 	tty, err := tty.Open()
 	if err != nil {
-		log.Fatal("Failed to open keyboard tty: ", err)
+		fail("Failed to open keyboard tty: ", err)
+		return
 	}
 	// close teletype when the function ends
 	defer tty.Close()
@@ -158,7 +176,8 @@ func waitForExitKey(exitKey rune) {
 	for {
 		r, err := tty.ReadRune()
 		if err != nil {
-			log.Fatal("Failed to read from keyboard tty: ", err)
+			fail("Failed to read from keyboard tty: ", err)
+			return
 		}
 
 		// quit on user pressing 'q'
@@ -166,6 +185,11 @@ func waitForExitKey(exitKey rune) {
 			os.Exit(0)
 		}
 	}
+}
+
+func fail(message ...interface{}) {
+	fmt.Println(message...)
+	fmt.Println("")
 }
 
 // ascii_to_keydb_lookup maps ASCII codes to keybd Key definitions
@@ -244,7 +268,8 @@ var ascii_to_keydb_lookup = map[int]int{
 func pressKeys() {
 	kb, err := keybd_event.NewKeyBonding()
 	if err != nil {
-		log.Fatal("Failed to construct keyboard: ", err)
+		fail("Failed to construct keyboard: ", err)
+		return
 	}
 
 	// For linux, it is very important to wait 2 seconds
@@ -271,6 +296,7 @@ func pressKeys() {
 	// Press the selected keys
 	err = kb.Launching()
 	if err != nil {
-		log.Fatal("Failed to press keys: ", err)
+		fail("Failed to press keys: ", err)
+		return
 	}
 }

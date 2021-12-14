@@ -43,6 +43,11 @@ On Windows: `.\rfid-reader.exe`
 Provide the `-h` flag for options available.
 All defaults are designed for Protospaces office so this utility can be run without any modifications.
 
+Current options:
+
+- `--device` - Set name of device (Windows) or path to it (POSIX)
+- `--baud` - Set the baud of serial device
+
 ## Maintenance
 
 Feel free to submit PRs and modify this package to your hearts content
