@@ -32,6 +32,7 @@ e.g. `GOOS=windows go build`
 Simply run the executable.
 
 On Linux: `./rfid-reader`
+
 On Windows: `.\rfid-reader.exe`
 
 Provide the `-h` flag for options available.
