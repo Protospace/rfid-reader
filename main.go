@@ -36,7 +36,7 @@ func main() {
 	flag.BoolVar(&testMode, "test", testMode, "Set test mode, which simulates a serial device instead of requiring connecting to a real one")
 	flag.Parse()
 
-  // set up a channel to transmit bytes from serial device to the "aggregator" function
+	// set up a channel to transmit bytes from serial device to the "aggregator" function
 	scanPipe := make(chan byte)
 	if testMode {
 		fmt.Println("Test mode activated! Using a simulated device. Happy developing.")
@@ -109,7 +109,7 @@ func clipboardBridge(fromSerial <-chan byte) {
 	var result string
 	var err error
 	for {
-    // parse through record until we have received the stop character
+		// parse through record until we have received the stop character
 		for {
 			v := <-fromSerial
 			if v == endCharacter {
@@ -129,9 +129,9 @@ func clipboardBridge(fromSerial <-chan byte) {
 				log.Fatal("Serial scan is far too long - is the baud set properly?")
 			}
 		}
-    // TODO: implement debounce? continue if current result is same as previous result and time elapsed is <500 ms?
+		// TODO: implement debounce? continue if current result is same as previous result and time elapsed is <500 ms?
 
-    // copy the result to clipboard and notify user
+		// copy the result to clipboard and notify user
 		err = clipboard.WriteAll(result)
 		if err != nil {
 			log.Fatal("Failed to write to clipboard: ", err)
