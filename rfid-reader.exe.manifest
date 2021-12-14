@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+COMPATIBILITY SECTION - this section allows you to specify that an
+application has been designed to be compatible with certain versions
+of the operating system. Specifying these settings also disables
+Program Compatibility Assistant (PCA) (Autoshimming by the OS).
+Administrators who have re-engineered the install of an application or
+shimmed it to make it compliant with Windows 7 can use a manifest to
+prevent the operating system from UAC virtualizing or running PCA.
+
+DATE MANIFESTED: 2021-12-13
+FILE MANIFESTED: rfid-reader.exe
+NAME MANIFESTOR: Kent Brockman
+REASON FOR MANIFEST: initial
+-->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+
+  <assemblyIdentity version="1.0.0.0"
+    processorArchitecture="*"
+    name="Protospace RFID Reader"
+    type="win32"/>
+  <description>Read RFID card data so Protospace directors can assign them to users</description>
+
+    <!-- COMPATIBILITY SECTION SPECIFIES IF APP IS COMPLIANT
+    DISABLES PCA IF SPECIFIED -->
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+        <!--The ID below indicates application support for Windows 7 -->
+      <supportedOS Id="{35138b9a-5d96-4fbd-8e2d-a2440225f93a}"/>
+        <!--The ID below indicates application support for Windows 10 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+    </application>
+  </compatibility>
+
+  <!-- TRUSTINFO SECTION SPECIFIES REQUESTED PERMISSIONS AND
+  UIPI DISABLEMENT (SPECIAL CONDITIONS APPLY TO UIPI DISABLEMENT)-->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel
+          level="asInvoker"
+          uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+</assembly>

@@ -22,10 +22,15 @@ Install golang libraries with `go mod download`
 ### 2. Build
 
 `go build` will create an executable for your local platform.
-Simply run that executable for further instructions.
 
 If you want to build and deploy this to our office machine, which runs Windows, you can build for a specific architecture by setting `GOOS`.
+
 e.g. `GOOS=windows go build`
+
+Bonus: If you want to regenerate Windows executable metadata, run: `rsrc -manifest rfid-reader.exe.manifest -ico icon.ico`.
+This will generate a `.syso` file that `go build` detects and packages into the Windows executable.
+
+You may have to hunt around for where [`rsrc`](https://github.com/akavel/rsrc) gets installed on your machine or `PATH`.
 
 ### 3. Use
 

@@ -10,4 +10,7 @@ require (
 
 require github.com/atotto/clipboard v0.1.4
 
-require golang.org/x/sys v0.0.0-20210510120138-977fb7262007 // indirect
+require (
+	github.com/akavel/rsrc v0.10.2 // indirect
+	golang.org/x/sys v0.0.0-20210510120138-977fb7262007 // indirect
+)

@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// TODO: coooooool icon?
+// TODO: wrap log.Fatal and waitForExitKey for error reporting to user
 
 // default device/baud is Protospace offices RFID scanner
 var defaultDevice = "COM5"
