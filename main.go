@@ -15,6 +15,7 @@ import (
 
 // TODO: coooooool icon?
 
+// default device/baud is Protospace offices RFID scanner
 var defaultDevice = "COM5"
 var defaultBaud = 2400
 var testMode = false
@@ -35,6 +36,7 @@ func main() {
 	flag.BoolVar(&testMode, "test", testMode, "Set test mode, which simulates a serial device instead of requiring connecting to a real one")
 	flag.Parse()
 
+  // set up a channel to transmit bytes from serial device to the "aggregator" function
 	scanPipe := make(chan byte)
 	if testMode {
 		fmt.Println("Test mode activated! Using a simulated device. Happy developing.")
@@ -54,6 +56,8 @@ func main() {
 	waitForExitKey('q')
 }
 
+// dummySerial returns hardcoded serial bytes for local development and testing
+// Harded coded bytes are pushed into toAggregator channel
 func dummySerial(toAggregator chan<- byte) {
 	dummyReadings := [][]byte{
 		[]byte{10, 51, 52, 53, 54, 71, 65, 56, 54, 56, 48, 13},
@@ -73,6 +77,7 @@ func dummySerial(toAggregator chan<- byte) {
 	}
 }
 
+// openSerial will read directly from a serial device and push bytes into toAggregator channel
 func openSerial(device string, baud int, toAggregator chan<- byte) {
 	serialDevice := device
 	config := &serial.Config{
@@ -99,9 +104,12 @@ func openSerial(device string, baud int, toAggregator chan<- byte) {
 	}
 }
 
+// clipboardBridge will aggregate serial bytes into coherent records and sending them to the users clipboard so that they may use it
 func clipboardBridge(fromSerial <-chan byte) {
+	var result string
+	var err error
 	for {
-		scanAggregate := make([]byte, 30)
+    // parse through record until we have received the stop character
 		for {
 			v := <-fromSerial
 			if v == endCharacter {
@@ -110,28 +118,37 @@ func clipboardBridge(fromSerial <-chan byte) {
 			} else if v == startCharacter {
 				// we are getting a new record
 				// reinitialize our collection array and start collecting
-				scanAggregate = make([]byte, 30)
+				result = ""
 				continue
 			} else {
-				scanAggregate = append(scanAggregate, v)
+				// we have a valid character - build out the string
+				result = result + string(v)
+			}
+
+			if len(result) > 1024 {
+				log.Fatal("Serial scan is far too long - is the baud set properly?")
 			}
 		}
-		result := string(scanAggregate)
-    err := clipboard.WriteAll(result)
-    if (err != nil) {
-      log.Fatal("Failed to write to clipboard: ", err)
-    }
+    // TODO: implement debounce? continue if current result is same as previous result and time elapsed is <500 ms?
+
+    // copy the result to clipboard and notify user
+		err = clipboard.WriteAll(result)
+		if err != nil {
+			log.Fatal("Failed to write to clipboard: ", err)
+		}
 		fmt.Println("Scan copied to clipboard: " + result)
 	}
 }
 
+// waitForExitKey set a key that, when pressed, will exit the program
+// This allows the user to quit the program with a non-zero status code and keep the terminal open
 func waitForExitKey(exitKey rune) {
-	// open tty to keyboard
+	// open teletype to keyboard
 	tty, err := tty.Open()
 	if err != nil {
 		log.Fatal("Failed to open keyboard tty: ", err)
 	}
-	// close that tty when the function ends
+	// close teletype when the function ends
 	defer tty.Close()
 
 	fmt.Println("Press " + string(exitKey) + " to exit")
@@ -151,6 +168,8 @@ func waitForExitKey(exitKey rune) {
 	}
 }
 
+// ascii_to_keydb_lookup maps ASCII codes to keybd Key definitions
+// See this for more details: https://raw.githubusercontent.com/micmonay/keybd_event/master/keyboard.png
 var ascii_to_keydb_lookup = map[int]int{
 	// ascii / and 0-9
 	47: keybd_event.VK_SP11,
@@ -220,6 +239,8 @@ var ascii_to_keydb_lookup = map[int]int{
 	122: keybd_event.VK_Z,
 }
 
+// pressKeys will simulate key presses
+// NOT IMPLEMENTED - implement for "keyboard bridge" mode
 func pressKeys() {
 	kb, err := keybd_event.NewKeyBonding()
 	if err != nil {
