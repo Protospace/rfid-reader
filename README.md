@@ -25,7 +25,7 @@ Install golang libraries with `go mod download`
 
 If you want to build and deploy this to our office machine, which runs Windows, you can build for a specific architecture by setting `GOOS`.
 
-e.g. `GOOS=windows go build`
+e.g. `GOOS=windows go build -o RFID-Reader.exe`
 
 Bonus: If you want to regenerate Windows executable metadata, run: `rsrc -manifest rfid-reader.exe.manifest -ico icon.ico`.
 This will generate a `.syso` file that `go build` detects and packages into the Windows executable.

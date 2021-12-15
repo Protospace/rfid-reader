@@ -144,7 +144,9 @@ func clipboardBridge(fromSerial <-chan byte) {
 				return
 			}
 		}
-		// TODO: implement debounce? continue if current result is same as previous result and time elapsed is <500 ms?
+		// opting not to implement debounce here
+    // because we overwrite the clipboard, multiple scans are idempotent
+    // debounce will make the console output nicer maybe, but the functionality isn't improved
 
 		// copy the result to clipboard and notify user
 		// BUG: if you pass string([]byte) as result, clipboard.WriteAll will silently fail if []byte contains empty elements
