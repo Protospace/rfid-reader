@@ -3,14 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
-  "net/http"
 	"github.com/atotto/clipboard"
 	"github.com/mattn/go-tty"
 	"github.com/micmonay/keybd_event"
 	"github.com/tarm/serial"
+	"net/http"
 	"os"
 	"runtime"
-  "strings"
+	"strings"
 	"time"
 )
 
@@ -38,8 +38,8 @@ func main() {
 	flag.BoolVar(&testMode, "test", testMode, "Set test mode, which simulates a serial device instead of requiring connecting to a real one")
 	flag.Parse()
 
-  // set the endpoint based on environment
-  var endpoint string
+	// set the endpoint based on environment
+	var endpoint string
 	// set up a channel to transmit bytes from serial device to the "aggregator" function
 	scanPipe := make(chan byte)
 	// set up a channel to let main know if it is safe to continue or now
@@ -48,10 +48,10 @@ func main() {
 		fmt.Println("Test mode activated! Using a simulated device. Happy developing.")
 		fmt.Println("")
 		defaultDevice = "Test Simulator"
-    endpoint = DEV_ENDPOINT
+		endpoint = DEV_ENDPOINT
 		go dummySerial(scanPipe, proceedChan)
 	} else {
-    endpoint = PROD_ENDPOINT
+		endpoint = PROD_ENDPOINT
 		go openSerial(defaultDevice, defaultBaud, scanPipe, proceedChan)
 	}
 	if !<-proceedChan {
@@ -63,14 +63,14 @@ func main() {
 	}
 	fmt.Println("Successfully connected to serial device '" + defaultDevice + "'.")
 
-  // TODO: generalize: bridge w/ pipe so we can setup via config instead of hardcoding
-  // this might require making a factory for each bridge that returns the bridge function and a channel? factoring can accept configuration (e.g. endpoint for spaceport API, deduplication parameters, etc)
-  clipboardBridgePipe := make(chan string)
-  spaceportAPIBridgePipe := make(chan string)
-  go scanAggregatorDuplicator(scanPipe, clipboardBridgePipe, spaceportAPIBridgePipe)
+	// TODO: generalize: bridge w/ pipe so we can setup via config instead of hardcoding
+	// this might require making a factory for each bridge that returns the bridge function and a channel? factoring can accept configuration (e.g. endpoint for spaceport API, deduplication parameters, etc)
+	clipboardBridgePipe := make(chan string)
+	spaceportAPIBridgePipe := make(chan string)
+	go scanAggregatorDuplicator(scanPipe, clipboardBridgePipe, spaceportAPIBridgePipe)
 
 	go clipboardBridge(clipboardBridgePipe)
-  go spaceportAPIBridge(endpoint, spaceportAPIBridgePipe)
+	go spaceportAPIBridge(endpoint, spaceportAPIBridgePipe)
 	// keyboardBridge()
 
 	fmt.Println("Begin scanning!")
@@ -162,26 +162,26 @@ func scanAggregatorDuplicator(fromSerial <-chan byte, bridges ...chan<- string) 
 			}
 		}
 
-    // implement one-to-many - send result to each bridge
-    for _, bridge := range bridges {
-      bridge <- result
-    }
-  }
+		// implement one-to-many - send result to each bridge
+		for _, bridge := range bridges {
+			bridge <- result
+		}
+	}
 }
 
 // spaceportAPIBridge will POST scans to the spaceport API
 func spaceportAPIBridge(endpoint string, fromSerial <-chan string) {
-  var result string
-  for {
-    result = <-fromSerial
-    // TODO: debounce
+	var result string
+	for {
+		result = <-fromSerial
+		// TODO: debounce
 
-    // set POST parameters
-    content_type := "text/plain"
-    body := fmt.Sprintf("autoscan=%s", result)
+		// set POST parameters
+		content_type := "text/plain"
+		body := fmt.Sprintf("autoscan=%s", result)
 
-    // POST to API
-    resp, err := http.Post(endpoint, content_type, strings.NewReader(body))
+		// POST to API
+		resp, err := http.Post(endpoint, content_type, strings.NewReader(body))
 		if err != nil {
 			fail("Failed to sent to API: ", err)
 			return
@@ -192,14 +192,14 @@ func spaceportAPIBridge(endpoint string, fromSerial <-chan string) {
 
 // clipboardBridge will aggregate serial bytes into coherent records and send them to the users clipboard
 func clipboardBridge(fromSerial <-chan string) {
-  var result string
-  var err error
-  for {
-    result = <-fromSerial
+	var result string
+	var err error
+	for {
+		result = <-fromSerial
 		// opting not to implement debounce here
-    // because we overwrite the clipboard, multiple scans are idempotent
-    // debounce will make the console output nicer maybe
-    // but the functionality isn't improved
+		// because we overwrite the clipboard, multiple scans are idempotent
+		// debounce will make the console output nicer maybe
+		// but the functionality isn't improved
 
 		// copy the result to clipboard and notify user
 		// BUG: if you pass string([]byte) as result, clipboard.WriteAll will silently fail if []byte contains empty elements
@@ -321,7 +321,7 @@ var ascii_to_keydb_lookup = map[int]int{
 // keyboardBridge will simulate key presses
 func keyboardBridge() {
 	// TODO: Implement Keyboard bridge mode
-  panic("NOT IMPLEMENTED")
+	panic("NOT IMPLEMENTED")
 
 	kb, err := keybd_event.NewKeyBonding()
 	if err != nil {
