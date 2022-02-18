@@ -7,10 +7,11 @@ import (
 	"github.com/mattn/go-tty"
 	"github.com/micmonay/keybd_event"
 	"github.com/tarm/serial"
+  "math/rand"
 	"net/http"
+  "net/url"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 )
 
@@ -80,6 +81,9 @@ func main() {
 // dummySerial returns hardcoded serial bytes for local development and testing
 // Harded coded bytes are pushed into toAggregator channel
 func dummySerial(toAggregator chan<- byte, proceed chan<- bool) {
+  // set random seed for generating random numbers
+  rand.Seed(time.Now().UnixNano())
+
 	// the serial device wont fail, so we are good to proceed
 	proceed <- true
 
@@ -92,10 +96,14 @@ func dummySerial(toAggregator chan<- byte, proceed chan<- bool) {
 	// send simulated data forever
 	for {
 		for _, reading := range dummyReadings {
-			// send a scan at regular intervals
-			for _, val := range reading {
-				toAggregator <- val
+      // simulate multiple scans to check debounce/deduplication behaviour
+      for i := 1; i < rand.Intn(8) + 1; i++ {
+        // send each byte from reading
+        for _, val := range reading {
+          toAggregator <- val
+        }
 			}
+			// send a scan at regular intervals
 			time.Sleep(5 * time.Second)
 		}
 	}
@@ -172,21 +180,34 @@ func scanAggregatorDuplicator(fromSerial <-chan byte, bridges ...chan<- string) 
 // spaceportAPIBridge will POST scans to the spaceport API
 func spaceportAPIBridge(endpoint string, fromSerial <-chan string) {
 	var result string
+  var lastResult string
+  var lastResultTime time.Time
+  debounceTimeout, _ := time.ParseDuration("1s")
 	for {
 		result = <-fromSerial
-		// TODO: debounce
+
+    // TODO: DRY out debounce logic - perhaps into closure?
+		// debounce/deduplication
+    // if the current result is same as last
+    // AND the elapsed time is less then out timeout
+    // just skip it, we have the same reading in a short timeframe
+    if (result == lastResult && time.Since(lastResultTime) < debounceTimeout) {
+      continue
+    }
+    lastResult = result
+    lastResultTime = time.Now()
 
 		// set POST parameters
-		content_type := "text/plain"
-		body := fmt.Sprintf("autoscan=%s", result)
+    v := url.Values{}
+    v.Set("autoscan", result)
 
 		// POST to API
-		resp, err := http.Post(endpoint, content_type, strings.NewReader(body))
+		resp, err := http.PostForm(endpoint, v)
 		if err != nil {
 			fail("Failed to sent to API: ", err)
 			return
 		}
-		fmt.Println("Scan sent to Spaceport API: " + resp.Status)
+		fmt.Println("Scan sent to Spaceport API: " + result + " -> " + resp.Status)
 	}
 }
 
