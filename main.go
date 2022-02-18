@@ -55,10 +55,9 @@ func main() {
 	fmt.Println("Successfully connected to serial device '" + defaultDevice + "'.")
 
   // TODO: generalize: bridge w/ pipe so we can setup via config instead of hardcoding
-  clipboardBridgePipe := make(chan string, 5)
+  clipboardBridgePipe := make(chan string)
   go scanAggregatorDuplicator(scanPipe, clipboardBridgePipe)
 
-  // TODO: pass clipboardBridgePipe instead of scanPipe
 	go clipboardBridge(clipboardBridgePipe)
   // TODO: implement and call spaceportAPIBridge in go routine
 	// TODO: Implement Keyboard bridge mode and allow user to select it instead of clipboard bridge
