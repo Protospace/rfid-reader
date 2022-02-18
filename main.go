@@ -3,12 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
+  "net/http"
 	"github.com/atotto/clipboard"
 	"github.com/mattn/go-tty"
 	"github.com/micmonay/keybd_event"
 	"github.com/tarm/serial"
 	"os"
 	"runtime"
+  "strings"
 	"time"
 )
 
@@ -56,10 +58,11 @@ func main() {
 
   // TODO: generalize: bridge w/ pipe so we can setup via config instead of hardcoding
   clipboardBridgePipe := make(chan string)
-  go scanAggregatorDuplicator(scanPipe, clipboardBridgePipe)
+  spaceportAPIBridgePipe := make(chan string)
+  go scanAggregatorDuplicator(scanPipe, clipboardBridgePipe, spaceportAPIBridgePipe)
 
 	go clipboardBridge(clipboardBridgePipe)
-  // TODO: implement and call spaceportAPIBridge in go routine
+  go spaceportAPIBridge(spaceportAPIBridgePipe)
 	// TODO: Implement Keyboard bridge mode and allow user to select it instead of clipboard bridge
 	// pressKeys()
 
@@ -160,8 +163,29 @@ func scanAggregatorDuplicator(fromSerial <-chan byte, bridges ...chan<- string) 
 }
 
 // spaceportAPIBridge will POST scans to the spaceport API
-func spaceportAPIBridge(fromSerial <-chan byte) {
+func spaceportAPIBridge(fromSerial <-chan string) {
+  var result string
+  for {
+    result = <-fromSerial
+    // TODO: debounce
 
+    // TODO: how to configure
+    const DEV_ENDPOINT string = "https://api.spaceport.dns.t0.vc/stats/autoscan/"
+    const PROD_ENDPOINT string = "https://my.protospace.ca/stats/autoscan/"
+
+    // set POST parameters
+    endpoint := DEV_ENDPOINT
+    content_type := "text/plain"
+    body := fmt.Sprintf("autoscan=%s", result)
+
+    // POST to API
+    resp, err := http.Post(endpoint, content_type, strings.NewReader(body))
+		if err != nil {
+			fail("Failed to sent to API: ", err)
+			return
+		}
+		fmt.Println("Scan sent to Spaceport API: " + resp.Status)
+	}
 }
 
 // clipboardBridge will aggregate serial bytes into coherent records and send them to the users clipboard
