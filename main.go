@@ -54,7 +54,13 @@ func main() {
 	}
 	fmt.Println("Successfully connected to serial device '" + defaultDevice + "'.")
 
+  // TODO: generalize this
+  clipboardBridgePipe := make(chan string, 5)
+  scanAggregatorDuplicator(scanPipe, clipboardBridgePipe)
+
+  // TODO: pass clipboardBridgePipe instead of scanPipe
 	go clipboardBridge(scanPipe)
+  // TODO: implement and call spaceportAPIBridge in go routine
 	// TODO: Implement Keyboard bridge mode and allow user to select it instead of clipboard bridge
 	// pressKeys()
 
@@ -118,7 +124,18 @@ func openSerial(device string, baud int, toAggregator chan<- byte, proceed chan<
 	}
 }
 
-// clipboardBridge will aggregate serial bytes into coherent records and sending them to the users clipboard so that they may use it
+// scanAggregatorDuplicator will read from the serial device, aggregate results and multiply them to multiple channels
+func scanAggregatorDuplicator(fromSerial <-chan byte, bridges ...chan<- string) {
+  // pass off deduplication to bridge functions
+  // deduplication requirements are dictated by bridge implementations
+}
+
+// spaceportAPIBridge will POST scans to the spaceport API
+func spaceportAPIBridge(fromSerial <-chan byte) {
+
+}
+
+// clipboardBridge will aggregate serial bytes into coherent records and send them to the users clipboard
 func clipboardBridge(fromSerial <-chan byte) {
 	var result string
 	var err error
