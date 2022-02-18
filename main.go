@@ -27,7 +27,12 @@ var endCharacter = byte(13)   // ASCII CR
 const DEV_ENDPOINT string = "https://api.spaceport.dns.t0.vc/stats/autoscan/"
 const PROD_ENDPOINT string = "https://my.protospace.ca/stats/autoscan/"
 
+var timeout time.Duration
+
 func main() {
+	// hardcoding the debounce timeout as a global variable to be used in debounce timers across the program
+	timeout, _ = time.ParseDuration("1s")
+
 	fmt.Println("Welcome to Protospace's RFID Reader Tool")
 	fmt.Println("")
 	fmt.Println("Visit the repository page for more information and support:")
@@ -197,8 +202,7 @@ func timeElapsedDebounce(debounceTimeout time.Duration) func(string) bool {
 // spaceportAPIBridge will POST scans to the spaceport API
 func spaceportAPIBridge(endpoint string, fromSerial <-chan string) {
 	var result string
-	debounceTimeout, _ := time.ParseDuration("1s")
-	debouncer := timeElapsedDebounce(debounceTimeout)
+	debouncer := timeElapsedDebounce(timeout)
 	for {
 		result = <-fromSerial
 
@@ -224,12 +228,13 @@ func spaceportAPIBridge(endpoint string, fromSerial <-chan string) {
 func clipboardBridge(fromSerial <-chan string) {
 	var result string
 	var err error
+	debouncer := timeElapsedDebounce(timeout)
 	for {
 		result = <-fromSerial
-		// opting not to implement debounce here
-		// because we overwrite the clipboard, multiple scans are idempotent
-		// debounce will make the console output nicer maybe
-		// but the functionality isn't improved
+
+		if debouncer(result) {
+			continue
+		}
 
 		// copy the result to clipboard and notify user
 		// BUG: if you pass string([]byte) as result, clipboard.WriteAll will silently fail if []byte contains empty elements
