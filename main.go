@@ -177,25 +177,34 @@ func scanAggregatorDuplicator(fromSerial <-chan byte, bridges ...chan<- string) 
 	}
 }
 
-// spaceportAPIBridge will POST scans to the spaceport API
-func spaceportAPIBridge(endpoint string, fromSerial <-chan string) {
-	var result string
+// timeElapsedDebounce implements a time-based and value based debounce
+// it returns a function that takes a scan result and returns a bool indicating if that scan result was duplicated within the provided debounceTimeout
+func timeElapsedDebounce(debounceTimeout time.Duration) func(string) bool {
 	var lastResult string
 	var lastResultTime time.Time
-	debounceTimeout, _ := time.ParseDuration("1s")
-	for {
-		result = <-fromSerial
-
-		// TODO: DRY out debounce logic - perhaps into closure?
+	return func(result string) bool {
 		// debounce/deduplication
 		// if the current result is same as last
 		// AND the elapsed time is less then out timeout
-		// just skip it, we have the same reading in a short timeframe
-		if result == lastResult && time.Since(lastResultTime) < debounceTimeout {
-			continue
-		}
+		// it is a duplicated reading within debounceTimeout
+		isDuplicated := result == lastResult && time.Since(lastResultTime) < debounceTimeout
 		lastResult = result
 		lastResultTime = time.Now()
+		return isDuplicated
+	}
+}
+
+// spaceportAPIBridge will POST scans to the spaceport API
+func spaceportAPIBridge(endpoint string, fromSerial <-chan string) {
+	var result string
+	debounceTimeout, _ := time.ParseDuration("1s")
+	debouncer := timeElapsedDebounce(debounceTimeout)
+	for {
+		result = <-fromSerial
+
+		if debouncer(result) {
+			continue
+		}
 
 		// set POST parameters
 		v := url.Values{}
