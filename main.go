@@ -25,7 +25,7 @@ var startCharacter = byte(10) // ASCII LF
 var endCharacter = byte(13)   // ASCII CR
 
 const DEV_ENDPOINT string = "https://api.spaceport.dns.t0.vc/stats/autoscan/"
-const PROD_ENDPOINT string = "https://my.protospace.ca/stats/autoscan/"
+const PROD_ENDPOINT string = "https://api.my.protospace.ca/stats/autoscan/"
 
 var timeout time.Duration
 
