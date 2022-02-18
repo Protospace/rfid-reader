@@ -54,12 +54,12 @@ func main() {
 	}
 	fmt.Println("Successfully connected to serial device '" + defaultDevice + "'.")
 
-  // TODO: generalize this
+  // TODO: generalize: bridge w/ pipe so we can setup via config instead of hardcoding
   clipboardBridgePipe := make(chan string, 5)
-  scanAggregatorDuplicator(scanPipe, clipboardBridgePipe)
+  go scanAggregatorDuplicator(scanPipe, clipboardBridgePipe)
 
   // TODO: pass clipboardBridgePipe instead of scanPipe
-	go clipboardBridge(scanPipe)
+	go clipboardBridge(clipboardBridgePipe)
   // TODO: implement and call spaceportAPIBridge in go routine
 	// TODO: Implement Keyboard bridge mode and allow user to select it instead of clipboard bridge
 	// pressKeys()
@@ -124,21 +124,12 @@ func openSerial(device string, baud int, toAggregator chan<- byte, proceed chan<
 	}
 }
 
-// scanAggregatorDuplicator will read from the serial device, aggregate results and multiply them to multiple channels
+// scanAggregatorDuplicator will read from the serial device, aggregate results and send the result to each bridge
+// this function just aggregates bytes, it does nothing to deduplicate multiple scans
+// pass off deduplication to bridge functions
+// deduplication requirements are dictated by each bridge
 func scanAggregatorDuplicator(fromSerial <-chan byte, bridges ...chan<- string) {
-  // pass off deduplication to bridge functions
-  // deduplication requirements are dictated by bridge implementations
-}
-
-// spaceportAPIBridge will POST scans to the spaceport API
-func spaceportAPIBridge(fromSerial <-chan byte) {
-
-}
-
-// clipboardBridge will aggregate serial bytes into coherent records and send them to the users clipboard
-func clipboardBridge(fromSerial <-chan byte) {
 	var result string
-	var err error
 	for {
 		// parse through record until we have received the stop character
 		for {
@@ -161,9 +152,29 @@ func clipboardBridge(fromSerial <-chan byte) {
 				return
 			}
 		}
+
+    // implement one-to-many - send result to each bridge
+    for _, bridge := range bridges {
+      bridge <- result
+    }
+  }
+}
+
+// spaceportAPIBridge will POST scans to the spaceport API
+func spaceportAPIBridge(fromSerial <-chan byte) {
+
+}
+
+// clipboardBridge will aggregate serial bytes into coherent records and send them to the users clipboard
+func clipboardBridge(fromSerial <-chan string) {
+  var result string
+  var err error
+  for {
+    result = <-fromSerial
 		// opting not to implement debounce here
     // because we overwrite the clipboard, multiple scans are idempotent
-    // debounce will make the console output nicer maybe, but the functionality isn't improved
+    // debounce will make the console output nicer maybe
+    // but the functionality isn't improved
 
 		// copy the result to clipboard and notify user
 		// BUG: if you pass string([]byte) as result, clipboard.WriteAll will silently fail if []byte contains empty elements
