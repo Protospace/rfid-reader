@@ -23,6 +23,9 @@ var testMode = false
 var startCharacter = byte(10) // ASCII LF
 var endCharacter = byte(13)   // ASCII CR
 
+const DEV_ENDPOINT string = "https://api.spaceport.dns.t0.vc/stats/autoscan/"
+const PROD_ENDPOINT string = "https://my.protospace.ca/stats/autoscan/"
+
 func main() {
 	fmt.Println("Welcome to Protospace's RFID Reader Tool")
 	fmt.Println("")
@@ -35,6 +38,8 @@ func main() {
 	flag.BoolVar(&testMode, "test", testMode, "Set test mode, which simulates a serial device instead of requiring connecting to a real one")
 	flag.Parse()
 
+  // set the endpoint based on environment
+  var endpoint string
 	// set up a channel to transmit bytes from serial device to the "aggregator" function
 	scanPipe := make(chan byte)
 	// set up a channel to let main know if it is safe to continue or now
@@ -43,8 +48,10 @@ func main() {
 		fmt.Println("Test mode activated! Using a simulated device. Happy developing.")
 		fmt.Println("")
 		defaultDevice = "Test Simulator"
+    endpoint = DEV_ENDPOINT
 		go dummySerial(scanPipe, proceedChan)
 	} else {
+    endpoint = PROD_ENDPOINT
 		go openSerial(defaultDevice, defaultBaud, scanPipe, proceedChan)
 	}
 	if !<-proceedChan {
@@ -57,14 +64,14 @@ func main() {
 	fmt.Println("Successfully connected to serial device '" + defaultDevice + "'.")
 
   // TODO: generalize: bridge w/ pipe so we can setup via config instead of hardcoding
+  // this might require making a factory for each bridge that returns the bridge function and a channel? factoring can accept configuration (e.g. endpoint for spaceport API, deduplication parameters, etc)
   clipboardBridgePipe := make(chan string)
   spaceportAPIBridgePipe := make(chan string)
   go scanAggregatorDuplicator(scanPipe, clipboardBridgePipe, spaceportAPIBridgePipe)
 
 	go clipboardBridge(clipboardBridgePipe)
-  go spaceportAPIBridge(spaceportAPIBridgePipe)
-	// TODO: Implement Keyboard bridge mode and allow user to select it instead of clipboard bridge
-	// pressKeys()
+  go spaceportAPIBridge(endpoint, spaceportAPIBridgePipe)
+	// keyboardBridge()
 
 	fmt.Println("Begin scanning!")
 	waitForExitKey('q')
@@ -163,18 +170,13 @@ func scanAggregatorDuplicator(fromSerial <-chan byte, bridges ...chan<- string) 
 }
 
 // spaceportAPIBridge will POST scans to the spaceport API
-func spaceportAPIBridge(fromSerial <-chan string) {
+func spaceportAPIBridge(endpoint string, fromSerial <-chan string) {
   var result string
   for {
     result = <-fromSerial
     // TODO: debounce
 
-    // TODO: how to configure
-    const DEV_ENDPOINT string = "https://api.spaceport.dns.t0.vc/stats/autoscan/"
-    const PROD_ENDPOINT string = "https://my.protospace.ca/stats/autoscan/"
-
     // set POST parameters
-    endpoint := DEV_ENDPOINT
     content_type := "text/plain"
     body := fmt.Sprintf("autoscan=%s", result)
 
@@ -316,9 +318,11 @@ var ascii_to_keydb_lookup = map[int]int{
 	122: keybd_event.VK_Z,
 }
 
-// pressKeys will simulate key presses
-// NOT IMPLEMENTED - implement for "keyboard bridge" mode
-func pressKeys() {
+// keyboardBridge will simulate key presses
+func keyboardBridge() {
+	// TODO: Implement Keyboard bridge mode
+  panic("NOT IMPLEMENTED")
+
 	kb, err := keybd_event.NewKeyBonding()
 	if err != nil {
 		fail("Failed to construct keyboard: ", err)
