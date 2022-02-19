@@ -7,6 +7,9 @@ import (
 	"github.com/mattn/go-tty"
 	"github.com/micmonay/keybd_event"
 	"github.com/tarm/serial"
+	"math/rand"
+	"net/http"
+	"net/url"
 	"os"
 	"runtime"
 	"time"
@@ -21,7 +24,15 @@ var testMode = false
 var startCharacter = byte(10) // ASCII LF
 var endCharacter = byte(13)   // ASCII CR
 
+const DEV_ENDPOINT string = "https://api.spaceport.dns.t0.vc/stats/autoscan/"
+const PROD_ENDPOINT string = "https://api.my.protospace.ca/stats/autoscan/"
+
+var timeout time.Duration
+
 func main() {
+	// hardcoding the debounce timeout as a global variable to be used in debounce timers across the program
+	timeout, _ = time.ParseDuration("1s")
+
 	fmt.Println("Welcome to Protospace's RFID Reader Tool")
 	fmt.Println("")
 	fmt.Println("Visit the repository page for more information and support:")
@@ -33,6 +44,8 @@ func main() {
 	flag.BoolVar(&testMode, "test", testMode, "Set test mode, which simulates a serial device instead of requiring connecting to a real one")
 	flag.Parse()
 
+	// set the endpoint based on environment
+	var endpoint string
 	// set up a channel to transmit bytes from serial device to the "aggregator" function
 	scanPipe := make(chan byte)
 	// set up a channel to let main know if it is safe to continue or now
@@ -41,8 +54,10 @@ func main() {
 		fmt.Println("Test mode activated! Using a simulated device. Happy developing.")
 		fmt.Println("")
 		defaultDevice = "Test Simulator"
+		endpoint = DEV_ENDPOINT
 		go dummySerial(scanPipe, proceedChan)
 	} else {
+		endpoint = PROD_ENDPOINT
 		go openSerial(defaultDevice, defaultBaud, scanPipe, proceedChan)
 	}
 	if !<-proceedChan {
@@ -54,9 +69,15 @@ func main() {
 	}
 	fmt.Println("Successfully connected to serial device '" + defaultDevice + "'.")
 
-	go clipboardBridge(scanPipe)
-	// TODO: Implement Keyboard bridge mode and allow user to select it instead of clipboard bridge
-	// pressKeys()
+	// TODO: generalize: bridge w/ pipe so we can setup via config instead of hardcoding
+	// this might require making a factory for each bridge that returns the bridge function and a channel? factoring can accept configuration (e.g. endpoint for spaceport API, deduplication parameters, etc)
+	clipboardBridgePipe := make(chan string)
+	spaceportAPIBridgePipe := make(chan string)
+	go scanAggregatorDuplicator(scanPipe, clipboardBridgePipe, spaceportAPIBridgePipe)
+
+	go clipboardBridge(clipboardBridgePipe)
+	go spaceportAPIBridge(endpoint, spaceportAPIBridgePipe)
+	// keyboardBridge()
 
 	fmt.Println("Begin scanning!")
 	waitForExitKey('q')
@@ -65,6 +86,9 @@ func main() {
 // dummySerial returns hardcoded serial bytes for local development and testing
 // Harded coded bytes are pushed into toAggregator channel
 func dummySerial(toAggregator chan<- byte, proceed chan<- bool) {
+	// set random seed for generating random numbers
+	rand.Seed(time.Now().UnixNano())
+
 	// the serial device wont fail, so we are good to proceed
 	proceed <- true
 
@@ -77,10 +101,14 @@ func dummySerial(toAggregator chan<- byte, proceed chan<- bool) {
 	// send simulated data forever
 	for {
 		for _, reading := range dummyReadings {
-			// send a scan at regular intervals
-			for _, val := range reading {
-				toAggregator <- val
+			// simulate multiple scans to check debounce/deduplication behaviour
+			for i := 1; i < rand.Intn(8)+1; i++ {
+				// send each byte from reading
+				for _, val := range reading {
+					toAggregator <- val
+				}
 			}
+			// send a scan at regular intervals
 			time.Sleep(5 * time.Second)
 		}
 	}
@@ -118,10 +146,12 @@ func openSerial(device string, baud int, toAggregator chan<- byte, proceed chan<
 	}
 }
 
-// clipboardBridge will aggregate serial bytes into coherent records and sending them to the users clipboard so that they may use it
-func clipboardBridge(fromSerial <-chan byte) {
+// scanAggregatorDuplicator will read from the serial device, aggregate results and send the result to each bridge
+// this function just aggregates bytes, it does nothing to deduplicate multiple scans
+// pass off deduplication to bridge functions
+// deduplication requirements are dictated by each bridge
+func scanAggregatorDuplicator(fromSerial <-chan byte, bridges ...chan<- string) {
 	var result string
-	var err error
 	for {
 		// parse through record until we have received the stop character
 		for {
@@ -144,9 +174,67 @@ func clipboardBridge(fromSerial <-chan byte) {
 				return
 			}
 		}
-		// opting not to implement debounce here
-    // because we overwrite the clipboard, multiple scans are idempotent
-    // debounce will make the console output nicer maybe, but the functionality isn't improved
+
+		// implement one-to-many - send result to each bridge
+		for _, bridge := range bridges {
+			bridge <- result
+		}
+	}
+}
+
+// timeElapsedDebounce implements a time-based and value based debounce
+// it returns a function that takes a scan result and returns a bool indicating if that scan result was duplicated within the provided debounceTimeout
+func timeElapsedDebounce(debounceTimeout time.Duration) func(string) bool {
+	var lastResult string
+	var lastResultTime time.Time
+	return func(result string) bool {
+		// debounce/deduplication
+		// if the current result is same as last
+		// AND the elapsed time is less then out timeout
+		// it is a duplicated reading within debounceTimeout
+		isDuplicated := result == lastResult && time.Since(lastResultTime) < debounceTimeout
+		lastResult = result
+		lastResultTime = time.Now()
+		return isDuplicated
+	}
+}
+
+// spaceportAPIBridge will POST scans to the spaceport API
+func spaceportAPIBridge(endpoint string, fromSerial <-chan string) {
+	var result string
+	debouncer := timeElapsedDebounce(timeout)
+	for {
+		result = <-fromSerial
+
+		if debouncer(result) {
+			continue
+		}
+
+		// set POST parameters
+		v := url.Values{}
+		v.Set("autoscan", result)
+
+		// POST to API
+		resp, err := http.PostForm(endpoint, v)
+		if err != nil {
+			fail("Failed to sent to API: ", err)
+			return
+		}
+		fmt.Println("Scan sent to Spaceport API: " + result + " -> " + resp.Status)
+	}
+}
+
+// clipboardBridge will aggregate serial bytes into coherent records and send them to the users clipboard
+func clipboardBridge(fromSerial <-chan string) {
+	var result string
+	var err error
+	debouncer := timeElapsedDebounce(timeout)
+	for {
+		result = <-fromSerial
+
+		if debouncer(result) {
+			continue
+		}
 
 		// copy the result to clipboard and notify user
 		// BUG: if you pass string([]byte) as result, clipboard.WriteAll will silently fail if []byte contains empty elements
@@ -265,9 +353,11 @@ var ascii_to_keydb_lookup = map[int]int{
 	122: keybd_event.VK_Z,
 }
 
-// pressKeys will simulate key presses
-// NOT IMPLEMENTED - implement for "keyboard bridge" mode
-func pressKeys() {
+// keyboardBridge will simulate key presses
+func keyboardBridge() {
+	// TODO: Implement Keyboard bridge mode
+	panic("NOT IMPLEMENTED")
+
 	kb, err := keybd_event.NewKeyBonding()
 	if err != nil {
 		fail("Failed to construct keyboard: ", err)
